@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>script.py - Visual Studio Code</title>
+
+  <!-- Monaco Editor (The exact editor engine powering VS Code) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"></script>
+
+  <!-- Pyodide (Python WebAssembly runtime) -->
+  <script src="https://cdn.jsdelivr.net/pyodide/v0.25.0/full/pyodide.js"></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      background-color: #1e1e1e;
+      color: #cccccc;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      user-select: none;
+    }
+
+    /* Top Title Bar */
+    .titlebar {
+      background-color: #323233;
+      height: 30px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 10px;
+      font-size: 0.75rem;
+      color: #cccccc;
+      border-bottom: 1px solid #252526;
+    }
+    .titlebar .menu {
+      display: flex;
+      gap: 15px;
+    }
+    .titlebar .menu span {
+      cursor: pointer;
+    }
+    .titlebar .menu span:hover {
+      color: #ffffff;
+    }
+    .titlebar .app-title {
+      font-weight: 500;
+      color: #999999;
+    }
+
+    /* Main Workspace */
+    .workspace {
+      display: flex;
+      flex: 1;
+      height: calc(100vh - 52px);
+    }
+
+    /* VS Code Left Activity Bar */
+    .activity-bar {
+      width: 48px;
+      background-color: #333333;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding-top: 10px;
+      gap: 20px;
+      border-right: 1px solid #252526;
+    }
+    .activity-bar .icon {
+      width: 24px;
+      height: 24px;
+      cursor: pointer;
+      opacity: 0.6;
+      fill: #ffffff;
+    }
+    .activity-bar .icon.active {
+      opacity: 1;
+      border-left: 2px solid #007acc;
+    }
+
+    /* VS Code Sidebar File Explorer */
+    .sidebar {
+      width: 220px;
+      background-color: #252526;
+      display: flex;
+      flex-direction: column;
+      border-right: 1px solid #1e1e1e;
+    }
+    .sidebar-header {
+      font-size: 0.7rem;
+      font-weight: bold;
+      letter-spacing: 1px;
+      padding: 10px 20px;
+      color: #bbbbbb;
+      text-transform: uppercase;
+    }
+    .file-tree {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 20px;
+      font-size: 0.85rem;
+      background-color: #37373d;
+      color: #ffffff;
+      cursor: pointer;
+    }
+
+    /* Editor + Terminal Split Container */
+    .main-stage {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      background-color: #1e1e1e;
+    }
+
+    /* Tab Bar */
+    .tab-bar {
+      background-color: #252526;
+      display: flex;
+      height: 35px;
+      align-items: center;
+    }
+    .tab {
+      background-color: #1e1e1e;
+      color: #ffffff;
+      padding: 0 16px;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.8rem;
+      border-top: 1px solid #007acc;
+      border-right: 1px solid #252526;
+    }
+
+    /* Run Button Header Toolbar */
+    .editor-toolbar {
+      background-color: #1e1e1e;
+      padding: 6px 16px;
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      border-bottom: 1px solid #252526;
+    }
+    .btn-run {
+      background-color: #0e639c;
+      color: #ffffff;
+      border: none;
+      padding: 4px 12px;
+      font-size: 0.8rem;
+      border-radius: 2px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .btn-run:hover {
+      background-color: #1177bb;
+    }
+    .btn-run:disabled {
+      background-color: #4d4d4d;
+      cursor: not-allowed;
+    }
+
+    /* Monaco Editor Container */
+    #editor-container {
+      flex: 1;
+      width: 100%;
+    }
+
+    /* Integrated Terminal Output Pane */
+    .terminal-pane {
+      height: 200px;
+      background-color: #1e1e1e;
+      border-top: 1px solid #2d2d2d;
+      display: flex;
+      flex-direction: column;
+    }
+    .terminal-header {
+      background-color: #252526;
+      padding: 6px 16px;
+      font-size: 0.75rem;
+      display: flex;
+      justify-content: space-between;
+      color: #cccccc;
+      border-bottom: 1px solid #1e1e1e;
+    }
+    #console-output {
+      flex: 1;
+      background-color: #181818;
+      color: #cccccc;
+      font-family: "Consolas", "Courier New", monospace;
+      font-size: 0.85rem;
+      padding: 10px 16px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+    }
+    .term-err {
+      color: #f14c4c;
+    }
+    .term-sys {
+      color: #3794ff;
+    }
+
+    /* VS Code Bottom Status Bar */
+    .statusbar {
+      height: 22px;
+      background-color: #007acc;
+      color: #ffffff;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 10px;
+      font-size: 0.75rem;
+    }
+    .statusbar-right {
+      display: flex;
+      gap: 15px;
+    }
+
+    @media (max-width: 768px) {
+      .sidebar {
+        display: none;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Title Bar -->
+  <div class="titlebar">
+    <div class="menu">
+      <span>File</span>
+      <span>Edit</span>
+      <span>Selection</span>
+      <span>View</span>
+      <span>Run</span>
+      <span>Terminal</span>
+    </div>
+    <div class="app-title">script.py - VS Code Online</div>
+    <div></div>
+  </div>
+
+  <div class="workspace">
+    <!-- Left Activity Bar -->
+    <div class="activity-bar">
+      <svg class="icon active" viewBox="0 0 24 24"><path d="M17.5 0h-9L3 5.5V24h18V5.5L17.5 0zM19 22H5V6.5L8.5 3H17v19z"/></svg>
+    </div>
+
+    <!-- Sidebar Explorer -->
+    <div class="sidebar">
+      <div class="sidebar-header">Explorer</div>
+      <div class="file-tree">
+        <span>🐍</span> script.py
+      </div>
+    </div>
+
+    <!-- Main Code Stage -->
+    <div class="main-stage">
+      <div class="tab-bar">
+        <div class="tab">
+          <span>🐍</span> script.py
+        </div>
+      </div>
+
+      <div class="editor-toolbar">
+        <button class="btn-run" id="run-btn" onclick="runPython()" disabled>
+          ▶ Run Code
+        </button>
+      </div>
+
+      <!-- Monaco Editor (VS Code Engine) -->
+      <div id="editor-container"></div>
+
+      <!-- Integrated Terminal Output -->
+      <div class="terminal-pane">
+        <div class="terminal-header">
+          <span>TERMINAL</span>
+          <span id="py-status" style="color: #e2c08d;">Initializing Pyodide...</span>
+        </div>
+        <div id="console-output"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom Status Bar -->
+  <div class="statusbar">
+    <div>Python 3.11 (WebAssembly)</div>
+    <div class="statusbar-right">
+      <span>Ln 1, Col 1</span>
+      <span>UTF-8</span>
+      <span>Python</span>
+    </div>
+  </div>
+
+  <script>
+    let editor;
+    let pyodide;
+    const runBtn = document.getElementById('run-btn');
+    const pyStatus = document.getElementById('py-status');
+    const consoleOutput = document.getElementById('console-output');
+
+    // Load Monaco Editor (VS Code Editor Engine)
+    require.config({ paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs' } });
+    
+    require(['vs/editor/editor.main'], function () {
+      editor = monaco.editor.create(document.getElementById('editor-container'), {
+        value: `# VS Code Style Online Python Compiler\n\ndef calculate_fibonacci(n):\n    a, b = 0, 1\n    result = []\n    for _ in range(n):\n        result.append(a)\n        a, b = b, a + b\n    return result\n\nprint("Fibonacci Sequence:", calculate_fibonacci(10))\n`,
+        language: 'python',
+        theme: 'vs-dark',
+        automaticLayout: true,
+        fontSize: 14,
+        fontFamily: "'Fira Code', 'Consolas', monospace",
+        minimap: { enabled: true },
+        cursorBlinking: "smooth",
+        smoothScrolling: true
+      });
+    });
+
+    // Load Pyodide Runtime
+    async function initPyodide() {
+      try {
+        pyodide = await loadPyodide();
+        
+        pyodide.setStdout({
+          batched: (str) => printToConsole(str + '\n')
+        });
+        pyodide.setStderr({
+          batched: (str) => printToConsole(str + '\n', 'term-err')
+        });
+
+        pyStatus.innerText = 'Ready';
+        pyStatus.style.color = '#89d185';
+        runBtn.disabled = false;
+        printToConsole('Pyodide WebAssembly engine loaded successfully.\n\n', 'term-sys');
+      } catch (err) {
+        pyStatus.innerText = 'Engine Error';
+        pyStatus.style.color = '#f14c4c';
+        printToConsole('Failed to load Python runtime: ' + err + '\n', 'term-err');
+      }
+    }
+
+    async function runPython() {
+      if (!pyodide) return;
+
+      const code = editor.getValue();
+      runBtn.disabled = true;
+
+      try {
+        await pyodide.runPythonAsync(code);
+      } catch (err) {
+        printToConsole(err.message + '\n', 'term-err');
+      } finally {
+        runBtn.disabled = false;
+      }
+    }
+
+    function printToConsole(text, className = '') {
+      const span = document.createElement('span');
+      if (className) span.className = className;
+      span.textContent = text;
+      consoleOutput.appendChild(span);
+      consoleOutput.scrollTop = consoleOutput.scrollHeight;
+    }
+
+    initPyodide();
+  </script>
+</body>
+</html>
